@@ -159,13 +159,23 @@ export default function LiveControls() {
           <button style={momentBtn('#f0c060')} onClick={handlePremiereDanse}>💃 Première danse</button>
           <button style={momentBtn('#2ef0a0')} onClick={handleBouquet}>🎉 Bouquet (10s)</button>
           <button style={momentBtn('#00bfff')} onClick={handleSlow}>🕯️ Slow</button>
-          <button style={momentBtn('#444')} onClick={handleFin}>🏁 Fin (fade)</button>
+          <button style={momentBtn('#888888')} onClick={handleFin}>🏁 Fin (fade)</button>
         </div>
       </section>
     </div>
   );
 }
 
-const card     = { marginBottom: 16, background: '#16162a', borderRadius: 10, padding: 14, border: '1px solid #1e1e38' };
+const card      = { marginBottom: 16, background: '#16162a', borderRadius: 10, padding: 14, border: '1px solid #1e1e38' };
 const cardTitle = { fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 };
-const momentBtn = bg => ({ padding: '12px 8px', background: bg + '22', border: `1px solid ${bg}`, borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' });
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+const momentBtn = bg => ({ padding: '12px 8px', background: hexToRgba(bg, 0.15), border: `1px solid ${bg}`, borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' });
