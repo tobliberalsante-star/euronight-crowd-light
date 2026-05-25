@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import LiveControls from '../components/LiveControls';
+import PresetManager from '../components/PresetManager';
 import TimelineEditor from '../components/timeline/TimelineEditor';
 import socket from '../socket';
+
+function loadPresets() {
+  try { return JSON.parse(localStorage.getItem('euronight_presets') || '[]'); }
+  catch { return []; }
+}
 
 export default function DirectorPage() {
   const [tab, setTab]               = useState('live');
   const [viewerCount, setViewerCount] = useState(0);
   const [showQR, setShowQR]         = useState(false);
+  const [presets, setPresets]       = useState(loadPresets);
 
   const viewerUrl = `${window.location.protocol}//${window.location.host}`;
 
@@ -22,49 +29,66 @@ export default function DirectorPage() {
     };
   }, []);
 
-  // Translator : commandes timeline → événements socket du nouveau protocole
-  function sendCommand(cmd) {
-    if (cmd.type === 'color')  socket.emit('set_color', { color: cmd.value });
-    else if (cmd.type === 'effect') socket.emit('set_effect', { effect: cmd.value, speed: cmd.speed ?? 5 });
-    else if (cmd.type === 'flash')  socket.emit('flash');
+  function savePreset(preset) {
+    const updated = [...presets, preset];
+    setPresets(updated);
+    localStorage.setItem('euronight_presets', JSON.stringify(updated));
   }
+
+  function deletePreset(id) {
+    const updated = presets.filter(p => p.id !== id);
+    setPresets(updated);
+    localStorage.setItem('euronight_presets', JSON.stringify(updated));
+  }
+
+  function applyPreset(preset) {
+    if (preset.effect) socket.emit('set_effect', { effect: preset.effect, speed: preset.speed });
+    else socket.emit('set_color', { color: preset.color });
+  }
+
+  function sendCommand(cmd) {
+    if (cmd.type === 'color')        socket.emit('set_color', { color: cmd.value });
+    else if (cmd.type === 'effect')  socket.emit('set_effect', { effect: cmd.value, speed: cmd.speed ?? 5 });
+    else if (cmd.type === 'flash')   socket.emit('flash');
+  }
+
+  const TABS = [
+    { id: 'live',     label: 'Live' },
+    { id: 'presets',  label: `Presets${presets.length ? ` (${presets.length})` : ''}` },
+    { id: 'timeline', label: 'Timeline' },
+  ];
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', flexDirection: 'column' }}>
       <header style={{ padding: '10px 16px', background: '#16162a', borderBottom: '1px solid #2a2a4a', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
         <h1 style={{ fontSize: '15px', fontWeight: 700, color: '#a88bfa', margin: 0 }}>Euronight Director</h1>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: 4 }}>
-          {['live', 'timeline'].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={tabStyle(tab === t)}>
-              {t === 'live' ? 'Live' : 'Timeline'}
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>
+              {t.label}
             </button>
           ))}
         </div>
 
         <div style={{ flex: 1 }} />
 
-        {/* Viewer count */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: viewerCount > 0 ? '#2ed573' : '#444', display: 'inline-block' }} />
           <span style={{ color: '#888', fontSize: 13 }}>{viewerCount} connecté{viewerCount !== 1 ? 's' : ''}</span>
         </div>
 
-        {/* QR Button */}
         <button onClick={() => setShowQR(true)} style={{ padding: '5px 10px', background: '#1a1a2e', border: '1px solid #333355', borderRadius: 6, color: '#aaa', fontSize: 13, cursor: 'pointer' }}>
           QR Code
         </button>
       </header>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {tab === 'live'
-          ? <LiveControls />
-          : <TimelineEditor onSend={sendCommand} />
-        }
+        {tab === 'live'     && <LiveControls presets={presets} onApplyPreset={applyPreset} />}
+        {tab === 'presets'  && <PresetManager presets={presets} onSave={savePreset} onDelete={deletePreset} />}
+        {tab === 'timeline' && <TimelineEditor onSend={sendCommand} />}
       </div>
 
-      {/* QR Modal */}
       {showQR && (
         <div onClick={() => setShowQR(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 200, gap: 16 }}>
           <QRCodeSVG value={viewerUrl} size={280} bgColor="#ffffff" fgColor="#000000" />

@@ -26,7 +26,7 @@ const EFFECTS = [
   { id: 'party',       label: 'Party',      emoji: '🎉' },
 ];
 
-export default function LiveControls() {
+export default function LiveControls({ presets = [], onApplyPreset }) {
   const [activeColor, setActiveColor]   = useState('#ffffff');
   const [activeEffect, setActiveEffect] = useState(null);
   const [speed, setSpeed]               = useState(5);
@@ -119,6 +119,26 @@ export default function LiveControls() {
 
   return (
     <div style={{ padding: '16px', maxWidth: '640px', margin: '0 auto' }}>
+
+      {/* Presets */}
+      {presets.length > 0 && (
+        <section style={card}>
+          <h2 style={cardTitle}>Mes presets</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {presets.map(p => (
+              <button
+                key={p.id}
+                onClick={() => onApplyPreset(p)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8, background: '#1a1a2e', border: '1px solid #333355', color: '#e0e0f0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                {p.name}
+                {p.effect && <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>{p.effect}</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Couleurs */}
       <section style={card}>
