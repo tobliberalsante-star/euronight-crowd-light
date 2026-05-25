@@ -39,7 +39,7 @@ app.delete('/api/timelines/:name', (req, res) => {
 
 // ── Socket.io ────────────────────────────────────────────────────────────────
 
-let state = { color: '#000000', effect: null, speed: 5, brightness: 1 };
+let state = { color: '#000000', effect: null, speed: 5, brightness: 1, text: '' };
 const viewers = new Set();
 
 function broadcastViewerCount() {
@@ -86,6 +86,11 @@ io.on('connection', (socket) => {
   socket.on('set_brightness', ({ value }) => {
     state.brightness = value;
     io.emit('brightness_update', { value });
+  });
+
+  socket.on('set_text', ({ text }) => {
+    state.text = text ?? '';
+    io.emit('text_update', { text: state.text });
   });
 
   socket.on('disconnect', () => {

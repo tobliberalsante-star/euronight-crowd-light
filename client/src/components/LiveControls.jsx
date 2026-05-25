@@ -2,6 +2,11 @@ import { useState, useRef } from 'react';
 import socket from '../socket';
 import ColorPicker from './ColorPicker';
 
+const QUICK_MESSAGES = [
+  'BIENVENUE', 'BRAVO !', 'APPLAUDISSEZ', 'ON DANSE !',
+  'SILENCE', 'MERCI', '🎉', '❤️',
+];
+
 
 const EFFECTS = [
   { id: 'rainbow',     label: 'Rainbow',    emoji: '🌈' },
@@ -26,6 +31,7 @@ export default function LiveControls() {
   const [activeEffect, setActiveEffect] = useState(null);
   const [speed, setSpeed]               = useState(5);
   const [brightness, setBrightness]     = useState(1);
+  const [textInput, setTextInput]       = useState('');
   const speedRef   = useRef(5);
   const bouquetRef = useRef(null);
   const prevRef    = useRef(null);
@@ -101,6 +107,16 @@ export default function LiveControls() {
     setTimeout(() => { setActiveEffect(null); setActiveColor('#000000'); }, 5500);
   }
 
+  function sendText(text) {
+    setTextInput(text);
+    socket.emit('set_text', { text });
+  }
+
+  function clearText() {
+    setTextInput('');
+    socket.emit('set_text', { text: '' });
+  }
+
   return (
     <div style={{ padding: '16px', maxWidth: '640px', margin: '0 auto' }}>
 
@@ -148,6 +164,37 @@ export default function LiveControls() {
         <input type="range" min={0} max={1} step={0.01} value={brightness}
           onChange={e => handleBrightness(Number(e.target.value))}
           style={{ width: '100%', accentColor: '#6c63ff' }} />
+      </section>
+
+      {/* Texte */}
+      <section style={card}>
+        <h2 style={cardTitle}>Texte sur les écrans</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          {QUICK_MESSAGES.map(msg => (
+            <button
+              key={msg}
+              onClick={() => sendText(msg)}
+              style={{ padding: '6px 12px', borderRadius: 6, background: textInput === msg ? '#6c63ff' : '#1a1a2e', border: `1px solid ${textInput === msg ? '#6c63ff' : '#333355'}`, color: '#fff', fontSize: 13, cursor: 'pointer' }}
+            >
+              {msg}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={textInput}
+            onChange={e => setTextInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && sendText(textInput)}
+            placeholder="Texte libre…"
+            style={{ flex: 1, padding: '8px 12px', background: '#0a0a0f', border: '1px solid #333355', borderRadius: 6, color: '#e0e0f0', fontSize: 14 }}
+          />
+          <button onClick={() => sendText(textInput)} style={{ padding: '8px 14px', background: '#6c63ff', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Envoyer
+          </button>
+          <button onClick={clearText} style={{ padding: '8px 14px', background: '#2a2a4a', border: '1px solid #333355', borderRadius: 6, color: '#aaa', fontSize: 13, cursor: 'pointer' }}>
+            Effacer
+          </button>
+        </div>
       </section>
 
       {/* Moments spéciaux */}

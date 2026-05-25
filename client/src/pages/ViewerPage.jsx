@@ -9,6 +9,7 @@ const isIOSChrome = /CriOS/i.test(navigator.userAgent);
 export default function ViewerPage() {
   const [bgColor, setBgColor]       = useState('#000000');
   const [brightness, setBrightness] = useState(1);
+  const [displayText, setDisplayText] = useState('');
   const [isFlashing, setIsFlashing] = useState(false);
   const [showTap, setShowTap]       = useState(true);
   const [showSafariMsg, setShowSafariMsg] = useState(isIOSChrome);
@@ -53,10 +54,11 @@ export default function ViewerPage() {
     if (socket.connected) onConnect();
     socket.on('connect', onConnect);
 
-    socket.on('init_state', ({ color, effect, speed, brightness: b }) => {
+    socket.on('init_state', ({ color, effect, speed, brightness: b, text }) => {
       st.current.color = color || '#000000';
       st.current.speed = speed ?? 5;
       setBrightness(b ?? 1);
+      setDisplayText(text ?? '');
       if (effect) {
         st.current.effect = effect;
         st.current.effectStartTime = Date.now();
@@ -89,6 +91,7 @@ export default function ViewerPage() {
     });
 
     socket.on('brightness_update', ({ value }) => setBrightness(value));
+    socket.on('text_update', ({ text }) => setDisplayText(text ?? ''));
 
     return () => {
       socket.off('connect', onConnect);
@@ -98,6 +101,7 @@ export default function ViewerPage() {
       socket.off('effect_stop');
       socket.off('flash');
       socket.off('brightness_update');
+      socket.off('text_update');
     };
   }, []);
 
@@ -126,7 +130,24 @@ export default function ViewerPage() {
         <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: 1 - brightness, pointerEvents: 'none', zIndex: 5 }} />
       )}
 
-      {showTap && (
+      {/* Texte affiché par le régisseur */}
+      {displayText ? (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, padding: '0 5vw' }}>
+          <span style={{
+            color: '#ffffff',
+            fontSize: 'clamp(2rem, 12vw, 8rem)',
+            fontFamily: 'system-ui, sans-serif',
+            fontWeight: 900,
+            textAlign: 'center',
+            letterSpacing: '-0.02em',
+            lineHeight: 1.1,
+            textShadow: '0 2px 20px rgba(0,0,0,0.8), 0 0 60px rgba(0,0,0,0.5)',
+            wordBreak: 'break-word',
+          }}>
+            {displayText}
+          </span>
+        </div>
+      ) : showTap && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10 }}>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '1.1rem', fontFamily: 'sans-serif', letterSpacing: '0.05em' }}>
             Touche l'écran
