@@ -113,7 +113,6 @@ export default function ViewerPage() {
       style={{
         position: 'fixed', inset: 0,
         backgroundColor: isFlashing ? '#ffffff' : bgColor,
-        filter: `brightness(${brightness})`,
         cursor: 'none',
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -122,8 +121,13 @@ export default function ViewerPage() {
         overflow: 'hidden',
       }}
     >
+      {/* Overlay noir dont l'opacité simule la luminosité — fiable sur tous les navigateurs */}
+      {brightness < 1 && (
+        <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: 1 - brightness, pointerEvents: 'none', zIndex: 5 }} />
+      )}
+
       {showTap && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10 }}>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '1.1rem', fontFamily: 'sans-serif', letterSpacing: '0.05em' }}>
             Touche l'écran
           </span>
@@ -133,7 +137,7 @@ export default function ViewerPage() {
       {showSafariMsg && (
         <div
           onClick={e => { e.stopPropagation(); setShowSafariMsg(false); }}
-          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.85)', color: '#fff', fontFamily: 'sans-serif', fontSize: '0.9rem', padding: '16px 20px', textAlign: 'center', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.15)', zIndex: 10 }}
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.85)', color: '#fff', fontFamily: 'sans-serif', fontSize: '0.9rem', padding: '16px 20px', textAlign: 'center', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.15)', zIndex: 20 }}
         >
           Pour un affichage plein écran, ouvre ce lien dans <strong>Safari</strong> puis "Partager → Sur l'écran d'accueil"
           <br />
