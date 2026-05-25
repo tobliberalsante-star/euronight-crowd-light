@@ -1,95 +1,206 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import socket from '../socket';
 import ColorPicker from './ColorPicker';
 
-const EFFECTS = [
-  { id: 'solid',   label: 'Solid' },
-  { id: 'strobe',  label: 'Strobe' },
-  { id: 'rainbow', label: 'Rainbow' },
-  { id: 'pulse',   label: 'Pulse' },
-  { id: 'wave',    label: 'Wave' },
+const PRESET_COLORS = [
+  { name: 'Blanc',      hex: '#ffffff' },
+  { name: 'Noir',       hex: '#000000' },
+  { name: 'Rouge',      hex: '#ff1a1a' },
+  { name: 'Rose',       hex: '#ff69b4' },
+  { name: 'Or',         hex: '#f0c060' },
+  { name: 'Jaune',      hex: '#ffe566' },
+  { name: 'Émeraude',   hex: '#2ef0a0' },
+  { name: 'Bleu royal', hex: '#3f6cff' },
+  { name: 'Bleu ciel',  hex: '#00bfff' },
+  { name: 'Violet',     hex: '#a855f7' },
+  { name: 'Orange',     hex: '#ff8c42' },
+  { name: 'Corail',     hex: '#ff6b6b' },
+  { name: 'Cyan',       hex: '#00ffff' },
+  { name: 'Lime',       hex: '#aaff00' },
+  { name: 'Magenta',    hex: '#ff00ff' },
 ];
 
-export default function LiveControls({ onSend }) {
-  const [color, setColor] = useState('#ff0000');
-  const [effect, setEffect] = useState('solid');
-  const [speed, setSpeed] = useState(1);
+const EFFECTS = [
+  { id: 'rainbow',     label: 'Rainbow',    emoji: '🌈' },
+  { id: 'strobe',      label: 'Strobe',     emoji: '⚡' },
+  { id: 'pulse',       label: 'Pulse',      emoji: '💫' },
+  { id: 'wave',        label: 'Vague',      emoji: '🌊' },
+  { id: 'fire',        label: 'Feu',        emoji: '🔥' },
+  { id: 'ocean',       label: 'Océan',      emoji: '🐋' },
+  { id: 'disco',       label: 'Disco',      emoji: '🕺' },
+  { id: 'aurora',      label: 'Aurore',     emoji: '🌌' },
+  { id: 'gold',        label: 'Or',         emoji: '✨' },
+  { id: 'heartbeat',   label: 'Cœur',       emoji: '💓' },
+  { id: 'police',      label: 'Police',     emoji: '🚨' },
+  { id: 'candlelight', label: 'Bougie',     emoji: '🕯️' },
+  { id: 'matrix',      label: 'Matrix',     emoji: '💻' },
+  { id: 'sunrise',     label: 'Lever',      emoji: '🌅' },
+  { id: 'party',       label: 'Party',      emoji: '🎉' },
+];
 
-  function sendColor(c) {
-    setColor(c);
-    if (effect === 'solid') onSend({ type: 'color', value: c });
-    else onSend({ type: 'effect', value: effect, color: c, speed });
+export default function LiveControls() {
+  const [activeColor, setActiveColor]   = useState('#ffffff');
+  const [activeEffect, setActiveEffect] = useState(null);
+  const [speed, setSpeed]               = useState(5);
+  const [brightness, setBrightness]     = useState(1);
+  const speedRef   = useRef(5);
+  const bouquetRef = useRef(null);
+  const prevRef    = useRef(null);
+
+  // ── Couleur ───────────────────────────────────────────────────────────────
+
+  function sendColor(color) {
+    setActiveColor(color);
+    setActiveEffect(null);
+    socket.emit('set_color', { color });
   }
 
-  function sendEffect(e) {
-    setEffect(e);
-    if (e === 'solid') onSend({ type: 'color', value: color });
-    else onSend({ type: 'effect', value: e, color, speed });
+  // ── Effet ────────────────────────────────────────────────────────────────
+
+  function sendEffect(effectId, overrideSpeed) {
+    const s = overrideSpeed ?? speedRef.current;
+    setActiveEffect(effectId);
+    socket.emit('set_effect', { effect: effectId, speed: s });
   }
 
-  function sendSpeed(s) {
-    setSpeed(s);
-    if (effect !== 'solid') onSend({ type: 'effect', value: effect, color, speed: s });
+  function stopEffect() {
+    setActiveEffect(null);
+    socket.emit('stop_effect');
+  }
+
+  function handleSpeedChange(val) {
+    speedRef.current = val;
+    setSpeed(val);
+    if (activeEffect) socket.emit('set_effect', { effect: activeEffect, speed: val });
+  }
+
+  // ── Luminosité ────────────────────────────────────────────────────────────
+
+  function handleBrightness(val) {
+    setBrightness(val);
+    socket.emit('set_brightness', { value: val });
+  }
+
+  // ── Flash ────────────────────────────────────────────────────────────────
+
+  function handleFlash() {
+    for (let i = 0; i < 3; i++) setTimeout(() => socket.emit('flash'), i * 220);
+  }
+
+  // ── Moments spéciaux ─────────────────────────────────────────────────────
+
+  function handleEntreeMaries() {
+    sendColor('#ffffff');
+    setTimeout(() => sendEffect('pulse', 2), 50);
+  }
+
+  function handlePremiereDanse() {
+    sendEffect('gold', 3);
+  }
+
+  function handleBouquet() {
+    prevRef.current = { color: activeColor, effect: activeEffect, speed: speedRef.current };
+    sendEffect('party', 8);
+    if (bouquetRef.current) clearTimeout(bouquetRef.current);
+    bouquetRef.current = setTimeout(() => {
+      const prev = prevRef.current;
+      if (prev?.effect) sendEffect(prev.effect, prev.speed);
+      else sendColor(prev?.color || '#ffffff');
+    }, 10000);
+  }
+
+  function handleSlow() {
+    sendEffect('candlelight', 3);
+  }
+
+  function handleFin() {
+    sendEffect('fadeout', 5);
+    setTimeout(() => { setActiveEffect(null); setActiveColor('#000000'); }, 5500);
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+    <div style={{ padding: '16px', maxWidth: '640px', margin: '0 auto' }}>
 
+      {/* Couleurs preset */}
       <section style={card}>
-        <h2 style={cardTitle}>Couleur</h2>
-        <ColorPicker color={color} onChange={sendColor} />
-      </section>
-
-      <section style={card}>
-        <h2 style={cardTitle}>Effet</h2>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {EFFECTS.map(e => (
-            <button key={e.id} style={effectBtn(effect === e.id)} onClick={() => sendEffect(e.id)}>
-              {e.label}
+        <h2 style={cardTitle}>Couleurs</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+          {PRESET_COLORS.map(({ name, hex }) => (
+            <button
+              key={hex}
+              onClick={() => sendColor(hex)}
+              title={name}
+              style={{
+                aspectRatio: '2/1', borderRadius: 6, background: hex,
+                border: `2px solid ${activeColor === hex && !activeEffect ? '#fff' : hex === '#000000' ? '#444' : 'transparent'}`,
+                position: 'relative',
+              }}
+            >
+              <span style={{ position: 'absolute', bottom: 2, left: 0, right: 0, textAlign: 'center', fontSize: 9, color: hex === '#000000' ? '#888' : 'rgba(0,0,0,0.6)', fontWeight: 600, lineHeight: 1 }}>
+                {name}
+              </span>
             </button>
           ))}
         </div>
+        <ColorPicker color={activeColor} onChange={sendColor} />
       </section>
 
-      {effect !== 'solid' && (
-        <section style={card}>
-          <h2 style={cardTitle}>Vitesse — {speed.toFixed(1)}×</h2>
-          <input
-            type="range" min="0.2" max="5" step="0.1" value={speed}
-            onChange={e => sendSpeed(parseFloat(e.target.value))}
-            style={{ width: '100%', accentColor: '#6c63ff' }}
-          />
-        </section>
-      )}
-
+      {/* Effets */}
       <section style={card}>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            style={{ flex: 1, padding: '22px', fontSize: '22px', fontWeight: 700, background: '#ff4757', color: '#fff', borderRadius: '12px' }}
-            onPointerDown={() => onSend({ type: 'flash' })}
-          >
-            ⚡ Flash
+        <h2 style={cardTitle}>Effets</h2>
+        <div style={{ marginBottom: 10 }}>
+          <span style={{ color: '#888', fontSize: 12 }}>Vitesse : {speed}</span>
+          <input type="range" min={1} max={10} value={speed}
+            onChange={e => handleSpeedChange(Number(e.target.value))}
+            style={{ width: '100%', accentColor: '#6c63ff', marginTop: 4 }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+          {EFFECTS.map(({ id, label, emoji }) => (
+            <button
+              key={id}
+              onClick={() => activeEffect === id ? stopEffect() : sendEffect(id)}
+              style={{
+                padding: '10px 4px', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                border: `1px solid ${activeEffect === id ? '#6c63ff' : '#2a2a4a'}`,
+                background: activeEffect === id ? '#6c63ff22' : '#1a1a2e',
+              }}
+            >
+              <span style={{ fontSize: 20 }}>{emoji}</span>
+              <span style={{ fontSize: 10, color: activeEffect === id ? '#a88bfa' : '#666', fontWeight: activeEffect === id ? 700 : 400 }}>{label}</span>
+            </button>
+          ))}
+        </div>
+        {activeEffect && (
+          <button onClick={stopEffect} style={{ marginTop: 10, width: '100%', padding: '8px', background: '#2a1a1a', border: '1px solid #ff4757', borderRadius: 6, color: '#ff4757', fontSize: 13 }}>
+            ⏹ Stopper l'effet
           </button>
-          <button
-            style={{ flex: 1, padding: '22px', fontSize: '22px', fontWeight: 700, background: '#111', color: '#fff', border: '2px solid #333', borderRadius: '12px' }}
-            onClick={() => { setEffect('solid'); setColor('#000000'); onSend({ type: 'color', value: '#000000' }); }}
-          >
-            ■ Black
-          </button>
+        )}
+      </section>
+
+      {/* Luminosité */}
+      <section style={card}>
+        <h2 style={cardTitle}>Luminosité — {Math.round(brightness * 100)}%</h2>
+        <input type="range" min={0} max={1} step={0.01} value={brightness}
+          onChange={e => handleBrightness(Number(e.target.value))}
+          style={{ width: '100%', accentColor: '#6c63ff' }} />
+      </section>
+
+      {/* Moments spéciaux */}
+      <section style={card}>
+        <h2 style={cardTitle}>Moments spéciaux</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <button style={momentBtn('#ff4757')} onClick={handleFlash}>⚡ Flash ×3</button>
+          <button style={momentBtn('#a855f7')} onClick={handleEntreeMaries}>💍 Entrée mariés</button>
+          <button style={momentBtn('#f0c060')} onClick={handlePremiereDanse}>💃 Première danse</button>
+          <button style={momentBtn('#2ef0a0')} onClick={handleBouquet}>🎉 Bouquet (10s)</button>
+          <button style={momentBtn('#00bfff')} onClick={handleSlow}>🕯️ Slow</button>
+          <button style={momentBtn('#444')} onClick={handleFin}>🏁 Fin (fade)</button>
         </div>
       </section>
     </div>
   );
 }
 
-const card = { marginBottom: '20px', background: '#16162a', borderRadius: '12px', padding: '16px' };
-const cardTitle = { fontSize: '11px', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' };
-const effectBtn = active => ({
-  padding: '8px 18px',
-  borderRadius: '8px',
-  border: `1px solid ${active ? '#6c63ff' : '#333355'}`,
-  background: active ? '#6c63ff' : '#1a1a2e',
-  color: active ? '#fff' : '#888',
-  fontSize: '14px',
-  fontWeight: active ? 600 : 400,
-  transition: 'all 0.12s',
-});
+const card     = { marginBottom: 16, background: '#16162a', borderRadius: 10, padding: 14, border: '1px solid #1e1e38' };
+const cardTitle = { fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 };
+const momentBtn = bg => ({ padding: '12px 8px', background: bg + '22', border: `1px solid ${bg}`, borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' });

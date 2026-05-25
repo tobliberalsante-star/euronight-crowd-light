@@ -11,61 +11,91 @@ const io = new Server(server, {
 });
 
 app.use(express.json({ limit: '50mb' }));
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// ── Timeline REST API ────────────────────────────────────────────────────────
 
 const timelinesDir = path.join(__dirname, 'timelines');
 if (!fs.existsSync(timelinesDir)) fs.mkdirSync(timelinesDir, { recursive: true });
 
-// Serve built client in production
-app.use(express.static(path.join(__dirname, '../client/dist')));
-
-// Timeline REST API
 app.get('/api/timelines', (_req, res) => {
-  try {
-    const files = fs.readdirSync(timelinesDir).filter(f => f.endsWith('.json'));
-    res.json(files.map(f => f.replace('.json', '')));
-  } catch {
-    res.json([]);
-  }
+  try { res.json(fs.readdirSync(timelinesDir).filter(f => f.endsWith('.json')).map(f => f.replace('.json', ''))); }
+  catch { res.json([]); }
 });
-
 app.get('/api/timelines/:name', (req, res) => {
   const file = path.join(timelinesDir, `${req.params.name}.json`);
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'Not found' });
   res.json(JSON.parse(fs.readFileSync(file, 'utf8')));
 });
-
 app.post('/api/timelines/:name', (req, res) => {
-  const file = path.join(timelinesDir, `${req.params.name}.json`);
-  fs.writeFileSync(file, JSON.stringify(req.body, null, 2));
+  fs.writeFileSync(path.join(timelinesDir, `${req.params.name}.json`), JSON.stringify(req.body, null, 2));
   res.json({ ok: true });
 });
-
 app.delete('/api/timelines/:name', (req, res) => {
   const file = path.join(timelinesDir, `${req.params.name}.json`);
   if (fs.existsSync(file)) fs.unlinkSync(file);
   res.json({ ok: true });
 });
 
-// Socket.io — relay commands, remember last state for reconnections
-let lastCommand = null;
+// ── Socket.io ────────────────────────────────────────────────────────────────
+
+let state = { color: '#000000', effect: null, speed: 5, brightness: 1 };
+const viewers = new Set();
+
+function broadcastViewerCount() {
+  io.emit('viewer_count', { count: viewers.size });
+}
 
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
-  // Send last known state to newly connected viewer
-  if (lastCommand) socket.emit('command', lastCommand);
+  // Sync new connection with current state
+  socket.emit('init_state', state);
 
-  socket.on('command', (data) => {
-    lastCommand = data;
-    socket.broadcast.emit('command', data);
+  socket.on('register_viewer', () => {
+    viewers.add(socket.id);
+    broadcastViewerCount();
+  });
+
+  socket.on('register_admin', () => {
+    // Admin not counted as viewer
+  });
+
+  socket.on('set_color', ({ color }) => {
+    state.color = color;
+    state.effect = null;
+    io.emit('color_update', { color });
+    io.emit('effect_stop');
+  });
+
+  socket.on('set_effect', ({ effect, speed }) => {
+    state.effect = effect;
+    if (speed !== undefined) state.speed = speed;
+    io.emit('effect_update', { effect, speed: state.speed });
+  });
+
+  socket.on('stop_effect', () => {
+    state.effect = null;
+    io.emit('effect_stop');
+  });
+
+  socket.on('flash', () => {
+    io.emit('flash');
+  });
+
+  socket.on('set_brightness', ({ value }) => {
+    state.brightness = value;
+    io.emit('brightness_update', { value });
   });
 
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
+    const wasViewer = viewers.has(socket.id);
+    viewers.delete(socket.id);
+    if (wasViewer) broadcastViewerCount();
   });
 });
 
-// SPA fallback
 app.get('*', (_req, res) => {
   const index = path.join(__dirname, '../client/dist/index.html');
   if (fs.existsSync(index)) res.sendFile(index);
