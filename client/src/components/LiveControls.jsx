@@ -2,23 +2,6 @@ import { useState, useRef } from 'react';
 import socket from '../socket';
 import ColorPicker from './ColorPicker';
 
-const PRESET_COLORS = [
-  { name: 'Blanc',      hex: '#ffffff' },
-  { name: 'Noir',       hex: '#000000' },
-  { name: 'Rouge',      hex: '#ff1a1a' },
-  { name: 'Rose',       hex: '#ff69b4' },
-  { name: 'Or',         hex: '#f0c060' },
-  { name: 'Jaune',      hex: '#ffe566' },
-  { name: 'Émeraude',   hex: '#2ef0a0' },
-  { name: 'Bleu royal', hex: '#3f6cff' },
-  { name: 'Bleu ciel',  hex: '#00bfff' },
-  { name: 'Violet',     hex: '#a855f7' },
-  { name: 'Orange',     hex: '#ff8c42' },
-  { name: 'Corail',     hex: '#ff6b6b' },
-  { name: 'Cyan',       hex: '#00ffff' },
-  { name: 'Lime',       hex: '#aaff00' },
-  { name: 'Magenta',    hex: '#ff00ff' },
-];
 
 const EFFECTS = [
   { id: 'rainbow',     label: 'Rainbow',    emoji: '🌈' },
@@ -121,27 +104,9 @@ export default function LiveControls() {
   return (
     <div style={{ padding: '16px', maxWidth: '640px', margin: '0 auto' }}>
 
-      {/* Couleurs preset */}
+      {/* Couleurs */}
       <section style={card}>
         <h2 style={cardTitle}>Couleurs</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
-          {PRESET_COLORS.map(({ name, hex }) => (
-            <button
-              key={hex}
-              onClick={() => sendColor(hex)}
-              title={name}
-              style={{
-                aspectRatio: '2/1', borderRadius: 6, background: hex,
-                border: `2px solid ${activeColor === hex && !activeEffect ? '#fff' : hex === '#000000' ? '#444' : 'transparent'}`,
-                position: 'relative',
-              }}
-            >
-              <span style={{ position: 'absolute', bottom: 2, left: 0, right: 0, textAlign: 'center', fontSize: 9, color: hex === '#000000' ? '#888' : 'rgba(0,0,0,0.6)', fontWeight: 600, lineHeight: 1 }}>
-                {name}
-              </span>
-            </button>
-          ))}
-        </div>
         <ColorPicker color={activeColor} onChange={sendColor} />
       </section>
 
