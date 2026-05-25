@@ -26,12 +26,15 @@ const EFFECTS = [
   { id: 'party',       label: 'Party',      emoji: '🎉' },
 ];
 
+const COUNTDOWN_PRESETS = [3, 5, 10, 30, 60];
+
 export default function LiveControls({ presets = [], onApplyPreset }) {
   const [activeColor, setActiveColor]   = useState('#ffffff');
   const [activeEffect, setActiveEffect] = useState(null);
   const [speed, setSpeed]               = useState(5);
   const [brightness, setBrightness]     = useState(1);
   const [textInput, setTextInput]       = useState('');
+  const [customCountdown, setCustomCountdown] = useState('');
   const speedRef   = useRef(5);
   const bouquetRef = useRef(null);
   const prevRef    = useRef(null);
@@ -115,6 +118,17 @@ export default function LiveControls({ presets = [], onApplyPreset }) {
   function clearText() {
     setTextInput('');
     socket.emit('set_text', { text: '' });
+  }
+
+  function launchCountdown(seconds) {
+    const s = Number(seconds);
+    if (!s || s <= 0) return;
+    socket.emit('start_countdown', { seconds: s });
+    setCustomCountdown('');
+  }
+
+  function stopCountdown() {
+    socket.emit('stop_countdown');
   }
 
   return (
@@ -213,6 +227,45 @@ export default function LiveControls({ presets = [], onApplyPreset }) {
           </button>
           <button onClick={clearText} style={{ padding: '8px 14px', background: '#2a2a4a', border: '1px solid #333355', borderRadius: 6, color: '#aaa', fontSize: 13, cursor: 'pointer' }}>
             Effacer
+          </button>
+        </div>
+      </section>
+
+      {/* Compte à rebours */}
+      <section style={card}>
+        <h2 style={cardTitle}>Compte à rebours</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          {COUNTDOWN_PRESETS.map(s => (
+            <button
+              key={s}
+              onClick={() => launchCountdown(s)}
+              style={{ padding: '8px 14px', borderRadius: 8, background: '#1a1a2e', border: '1px solid #2a2a4a', color: '#e0e0f0', fontSize: 14, fontWeight: 700, cursor: 'pointer', minWidth: 52 }}
+            >
+              {s}s
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="number"
+            min={1}
+            value={customCountdown}
+            onChange={e => setCustomCountdown(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && launchCountdown(customCountdown)}
+            placeholder="Durée (s)"
+            style={{ flex: 1, padding: '8px 12px', background: '#0a0a0f', border: '1px solid #333355', borderRadius: 6, color: '#e0e0f0', fontSize: 14 }}
+          />
+          <button
+            onClick={() => launchCountdown(customCountdown || 10)}
+            style={{ padding: '8px 16px', background: '#6c63ff', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Lancer
+          </button>
+          <button
+            onClick={stopCountdown}
+            style={{ padding: '8px 12px', background: '#2a1a1a', border: '1px solid #ff4757', borderRadius: 6, color: '#ff4757', fontSize: 13, cursor: 'pointer' }}
+          >
+            Stop
           </button>
         </div>
       </section>

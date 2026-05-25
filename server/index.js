@@ -39,7 +39,7 @@ app.delete('/api/timelines/:name', (req, res) => {
 
 // ── Socket.io ────────────────────────────────────────────────────────────────
 
-let state = { color: '#000000', effect: null, speed: 5, brightness: 1, text: '' };
+let state = { color: '#000000', effect: null, speed: 5, brightness: 1, text: '', countdown: null };
 const viewers = new Set();
 
 function broadcastViewerCount() {
@@ -91,6 +91,17 @@ io.on('connection', (socket) => {
   socket.on('set_text', ({ text }) => {
     state.text = text ?? '';
     io.emit('text_update', { text: state.text });
+  });
+
+  socket.on('start_countdown', ({ seconds }) => {
+    const endsAt = Date.now() + seconds * 1000;
+    state.countdown = { endsAt };
+    io.emit('countdown_start', { endsAt });
+  });
+
+  socket.on('stop_countdown', () => {
+    state.countdown = null;
+    io.emit('countdown_stop');
   });
 
   socket.on('disconnect', () => {

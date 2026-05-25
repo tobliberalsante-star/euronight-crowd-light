@@ -13,6 +13,8 @@ export default function ViewerPage() {
   const [isFlashing, setIsFlashing] = useState(false);
   const [showTap, setShowTap]       = useState(true);
   const [showSafariMsg, setShowSafariMsg] = useState(isIOSChrome);
+  const [countdownLabel, setCountdownLabel] = useState('');
+  const countdownEndRef = useRef(null);
 
   const st = useRef({
     color: '#000000',
@@ -54,7 +56,7 @@ export default function ViewerPage() {
     if (socket.connected) onConnect();
     socket.on('connect', onConnect);
 
-    socket.on('init_state', ({ color, effect, speed, brightness: b, text }) => {
+    socket.on('init_state', ({ color, effect, speed, brightness: b, text, countdown }) => {
       st.current.color = color || '#000000';
       st.current.speed = speed ?? 5;
       setBrightness(b ?? 1);
@@ -65,6 +67,9 @@ export default function ViewerPage() {
       } else {
         st.current.effect = null;
         setBgColor(color || '#000000');
+      }
+      if (countdown?.endsAt && countdown.endsAt > Date.now()) {
+        countdownEndRef.current = countdown.endsAt;
       }
     });
 
@@ -93,6 +98,15 @@ export default function ViewerPage() {
     socket.on('brightness_update', ({ value }) => setBrightness(value));
     socket.on('text_update', ({ text }) => setDisplayText(text ?? ''));
 
+    socket.on('countdown_start', ({ endsAt }) => {
+      countdownEndRef.current = endsAt;
+    });
+
+    socket.on('countdown_stop', () => {
+      countdownEndRef.current = null;
+      setCountdownLabel('');
+    });
+
     return () => {
       socket.off('connect', onConnect);
       socket.off('init_state');
@@ -102,7 +116,27 @@ export default function ViewerPage() {
       socket.off('flash');
       socket.off('brightness_update');
       socket.off('text_update');
+      socket.off('countdown_start');
+      socket.off('countdown_stop');
     };
+  }, []);
+
+  // ── Countdown ticker ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      const endsAt = countdownEndRef.current;
+      if (!endsAt) return;
+      const remaining = Math.ceil((endsAt - Date.now()) / 1000);
+      if (remaining > 0) {
+        setCountdownLabel(String(remaining));
+      } else if (remaining > -3) {
+        setCountdownLabel('GO !');
+      } else {
+        countdownEndRef.current = null;
+        setCountdownLabel('');
+      }
+    }, 100);
+    return () => clearInterval(id);
   }, []);
 
   function handleClick() {
@@ -130,8 +164,26 @@ export default function ViewerPage() {
         <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: 1 - brightness, pointerEvents: 'none', zIndex: 5 }} />
       )}
 
+      {/* Compte à rebours */}
+      {countdownLabel ? (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 15 }}>
+          <span style={{
+            color: '#ffffff',
+            fontSize: 'clamp(6rem, 40vw, 22rem)',
+            fontFamily: 'system-ui, sans-serif',
+            fontWeight: 900,
+            textAlign: 'center',
+            letterSpacing: '-0.04em',
+            lineHeight: 1,
+            textShadow: '0 4px 40px rgba(0,0,0,0.9), 0 0 80px rgba(0,0,0,0.6)',
+          }}>
+            {countdownLabel}
+          </span>
+        </div>
+      ) : null}
+
       {/* Texte affiché par le régisseur */}
-      {displayText ? (
+      {!countdownLabel && displayText ? (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, padding: '0 5vw' }}>
           <span style={{
             color: '#ffffff',
@@ -147,7 +199,7 @@ export default function ViewerPage() {
             {displayText}
           </span>
         </div>
-      ) : showTap && (
+      ) : !countdownLabel && showTap && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10 }}>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '1.1rem', fontFamily: 'sans-serif', letterSpacing: '0.05em' }}>
             Touche l'écran
