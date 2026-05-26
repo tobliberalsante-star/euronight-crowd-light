@@ -34,10 +34,11 @@ export default function TimelineEditor({ onSend }) {
   const [modal, setModal]             = useState(null);     // { time, event | null }
   const [dragging, setDragging]       = useState(null);    // { id, startX, startTime }
 
-  const audioRef   = useRef(null);
-  const trackRef   = useRef(null);
-  const rafRef     = useRef(null);
-  const scrollRef  = useRef(null);
+  const audioRef      = useRef(null);
+  const trackRef      = useRef(null);
+  const rafRef        = useRef(null);
+  const scrollRef     = useRef(null);
+  const playStartRef  = useRef(null); // Date.now() - currentTime*1000 at play start
 
   // Load saved timeline names on mount
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function TimelineEditor({ onSend }) {
     if (audioRef.current?.duration) setDuration(audioRef.current.duration);
   }
 
-  // ── Playback engine ────────────────────────────────────────────────────────
+  // ── Playback engine (timer-based — audio optionnel) ──────────────────────
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -66,9 +67,7 @@ export default function TimelineEditor({ onSend }) {
     const sorted = [...events].sort((a, b) => a.time - b.time);
 
     function tick() {
-      const audio = audioRef.current;
-      if (!audio || audio.paused) { setIsPlaying(false); return; }
-      const ct = audio.currentTime;
+      const ct = Math.min(duration, (Date.now() - playStartRef.current) / 1000);
       setCurrentTime(ct);
       for (const ev of sorted) {
         if (ev.time <= ct && !fired.has(ev.id)) {
@@ -76,7 +75,7 @@ export default function TimelineEditor({ onSend }) {
           onSend(eventToCommand(ev));
         }
       }
-      // Auto-scroll playhead into view
+      if (ct >= duration) { setIsPlaying(false); return; }
       if (scrollRef.current) {
         const px = ct * scale;
         const w  = scrollRef.current.offsetWidth;
@@ -88,11 +87,11 @@ export default function TimelineEditor({ onSend }) {
 
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [isPlaying, events, scale, onSend]);
+  }, [isPlaying, events, scale, onSend, duration]);
 
   function play() {
-    if (!audioRef.current) return;
-    audioRef.current.play();
+    playStartRef.current = Date.now() - currentTime * 1000;
+    audioRef.current?.play().catch(() => {});
     setIsPlaying(true);
   }
 
@@ -105,6 +104,10 @@ export default function TimelineEditor({ onSend }) {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
     setIsPlaying(false);
     setCurrentTime(0);
+  }
+
+  function handleMark() {
+    setModal({ time: currentTime, event: null });
   }
 
   // ── Timeline interactions ──────────────────────────────────────────────────
@@ -225,15 +228,15 @@ export default function TimelineEditor({ onSend }) {
         )}
       </div>
 
-      {/* Audio */}
+      {/* Audio optionnel */}
       <div style={{ ...panel, ...row }}>
         <label style={{ ...btn('#2a2a4a'), cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          Charger audio
+          Audio (référence)
           <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioFile} />
         </label>
         {audioName
           ? <span style={{ color: '#aaa', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{audioName}</span>
-          : <span style={{ color: '#555', fontSize: '13px' }}>Aucun fichier — la lecture timeline requiert un audio</span>
+          : <span style={{ color: '#555', fontSize: '13px' }}>Optionnel — pour caler les cues pendant la création</span>
         }
         {audioUrl && (
           <audio ref={audioRef} src={audioUrl} onLoadedMetadata={handleMetadata}
@@ -244,13 +247,21 @@ export default function TimelineEditor({ onSend }) {
 
       {/* Transport */}
       <div style={{ ...panel, ...row }}>
-        <button style={iconBtn} onClick={isPlaying ? pause : play} disabled={!audioUrl} title={isPlaying ? 'Pause' : 'Lecture'}>
+        <button style={iconBtn} onClick={isPlaying ? pause : play} title={isPlaying ? 'Pause' : 'Lecture'}>
           {isPlaying ? '⏸' : '▶'}
         </button>
         <button style={iconBtn} onClick={stop} disabled={!isPlaying && currentTime === 0} title="Stop">⏹</button>
         <span style={{ color: '#888', fontFamily: 'monospace', fontSize: '13px', minWidth: '100px' }}>
           {fmt(currentTime)} / {fmt(duration)}
         </span>
+        {isPlaying && (
+          <button
+            onClick={handleMark}
+            style={{ padding: '6px 12px', background: '#ff475722', border: '1px solid #ff4757', borderRadius: 6, color: '#ff4757', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            ✦ Marquer ici
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         <span style={{ color: '#555', fontSize: '12px' }}>Zoom</span>
         <input type="range" min="8" max="120" value={scale}
@@ -322,7 +333,7 @@ export default function TimelineEditor({ onSend }) {
       </div>
 
       <p style={{ textAlign: 'center', color: '#444', fontSize: '12px', marginTop: '8px' }}>
-        Cliquez sur la timeline pour ajouter un événement · Glissez pour déplacer · Cliquez sur un événement pour modifier
+        Cliquez sur la timeline pour ajouter un cue · Glissez pour déplacer · En lecture : "Marquer ici" pose un cue au temps courant
       </p>
 
       {modal && (
