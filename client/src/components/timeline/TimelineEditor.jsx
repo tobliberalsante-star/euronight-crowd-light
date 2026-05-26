@@ -33,31 +33,86 @@ export default function TimelineEditor({ onSend }) {
   const [savedList, setSavedList]     = useState([]);
   const [modal, setModal]             = useState(null);     // { time, event | null }
   const [dragging, setDragging]       = useState(null);    // { id, startX, startTime }
+  const [waveformData, setWaveformData] = useState(null);  // Float32Array of peak samples
 
-  const audioRef      = useRef(null);
-  const trackRef      = useRef(null);
-  const rafRef        = useRef(null);
-  const scrollRef     = useRef(null);
-  const playStartRef  = useRef(null); // Date.now() - currentTime*1000 at play start
+  const audioRef         = useRef(null);
+  const trackRef         = useRef(null);
+  const rafRef           = useRef(null);
+  const scrollRef        = useRef(null);
+  const playStartRef     = useRef(null);
+  const waveformCanvasRef = useRef(null);
 
   // Load saved timeline names on mount
   useEffect(() => {
     fetch('/api/timelines').then(r => r.json()).then(setSavedList).catch(() => {});
   }, []);
 
-  // ── Audio ──────────────────────────────────────────────────────────────────
+  // ── Audio + waveform ──────────────────────────────────────────────────────
 
-  function handleAudioFile(e) {
+  async function handleAudioFile(e) {
     const file = e.target.files[0];
     if (!file) return;
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(URL.createObjectURL(file));
     setAudioName(file.name);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      audioCtx.close();
+
+      setDuration(audioBuffer.duration);
+
+      // Downsample to peak-per-block for display
+      const raw = audioBuffer.getChannelData(0);
+      const NUM_SAMPLES = 5000;
+      const blockSize = Math.floor(raw.length / NUM_SAMPLES);
+      const samples = new Float32Array(NUM_SAMPLES);
+      for (let i = 0; i < NUM_SAMPLES; i++) {
+        let peak = 0;
+        for (let j = 0; j < blockSize; j++) {
+          const v = Math.abs(raw[i * blockSize + j]);
+          if (v > peak) peak = v;
+        }
+        samples[i] = peak;
+      }
+      setWaveformData(samples);
+    } catch (err) {
+      console.warn('Waveform decode failed:', err);
+    }
   }
 
   function handleMetadata() {
-    if (audioRef.current?.duration) setDuration(audioRef.current.duration);
+    if (audioRef.current?.duration && !waveformData) setDuration(audioRef.current.duration);
   }
+
+  // ── Redraw waveform canvas when data or zoom changes ──────────────────────
+
+  useEffect(() => {
+    if (!waveformData || !waveformCanvasRef.current) return;
+    const canvas = waveformCanvasRef.current;
+    const W = Math.max(duration * scale + 60, 400);
+    const H = 72;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    const N = waveformData.length;
+    let peak = 0;
+    for (let i = 0; i < N; i++) if (waveformData[i] > peak) peak = waveformData[i];
+    if (peak === 0) return;
+
+    const mid = H / 2;
+    for (let x = 0; x < W; x++) {
+      const idx = Math.floor((x / W) * N);
+      const amp = (waveformData[idx] / peak) * mid * 0.88;
+      const intensity = Math.round((waveformData[idx] / peak) * 180);
+      ctx.fillStyle = `rgba(${80 + intensity}, ${60 + intensity / 2}, 255, 0.55)`;
+      ctx.fillRect(x, mid - amp, 1, amp * 2 || 1);
+    }
+  }, [waveformData, duration, scale]);
 
   // ── Playback engine (timer-based — audio optionnel) ──────────────────────
 
@@ -296,6 +351,14 @@ export default function TimelineEditor({ onSend }) {
               style={{ height: '72px', position: 'relative', cursor: 'crosshair',
                 backgroundImage: `repeating-linear-gradient(90deg, transparent 0px, transparent ${scale * tickStep - 1}px, #1a1a2e ${scale * tickStep - 1}px, #1a1a2e ${scale * tickStep}px)` }}
             >
+              {/* Waveform canvas */}
+              {waveformData && (
+                <canvas
+                  ref={waveformCanvasRef}
+                  style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0 }}
+                />
+              )}
+
               {events.map(ev => (
                 <div
                   key={ev.id}
