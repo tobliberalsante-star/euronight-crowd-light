@@ -167,6 +167,15 @@ export default function TimelineEditor({ onSend }) {
 
   // ── Timeline interactions ──────────────────────────────────────────────────
 
+  function handleRulerClick(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const sl   = scrollRef.current?.scrollLeft ?? 0;
+    const t    = Math.max(0, Math.min(duration, (e.clientX - rect.left + sl) / scale));
+    setCurrentTime(t);
+    if (audioRef.current) audioRef.current.currentTime = t;
+    if (isPlaying) playStartRef.current = Date.now() - t * 1000;
+  }
+
   function handleTrackClick(e) {
     if (dragging) return;
     const rect = trackRef.current.getBoundingClientRect();
@@ -329,8 +338,11 @@ export default function TimelineEditor({ onSend }) {
         <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'hidden' }}>
           <div style={{ width: totalWidth + 'px', position: 'relative', userSelect: 'none' }}>
 
-            {/* Ruler */}
-            <div style={{ height: '28px', position: 'relative', borderBottom: '1px solid #2a2a4a', background: '#0d0d1a' }}>
+            {/* Ruler — cliquer pour se positionner */}
+            <div
+              onClick={handleRulerClick}
+              style={{ height: '28px', position: 'relative', borderBottom: '1px solid #2a2a4a', background: '#0d0d1a', cursor: 'col-resize' }}
+            >
               {ticks.map(t => (
                 <div key={t} style={{ position: 'absolute', left: t * scale, top: 0, height: '100%' }}>
                   <div style={{ width: 1, height: 10, background: '#3a3a5a' }} />
@@ -396,7 +408,7 @@ export default function TimelineEditor({ onSend }) {
       </div>
 
       <p style={{ textAlign: 'center', color: '#444', fontSize: '12px', marginTop: '8px' }}>
-        Cliquez sur la timeline pour ajouter un cue · Glissez pour déplacer · En lecture : "Marquer ici" pose un cue au temps courant
+        Règle (haut) : cliquer pour se positionner · Piste (bas) : cliquer pour ajouter un cue · Glisser pour déplacer
       </p>
 
       {modal && (
